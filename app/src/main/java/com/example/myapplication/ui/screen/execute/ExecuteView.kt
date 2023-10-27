@@ -1,144 +1,147 @@
 package com.example.myapplication.ui.screen.execute
 
+import android.content.Context
+import android.graphics.Canvas
 import android.graphics.Color
-import android.os.Environment
+import android.graphics.Paint
+import android.graphics.Path
+import android.util.Log
+import android.view.View
+import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.runtime.Composable
+import androidx.compose.ui.Modifier
 import androidx.compose.ui.viewinterop.AndroidView
 import androidx.navigation.NavHostController
-import com.amap.api.maps2d.AMap
-import com.amap.api.maps2d.MapView
-import com.amap.api.maps2d.model.LatLng
-import com.amap.api.maps2d.model.Polygon
-import com.amap.api.maps2d.model.PolygonOptions
-import org.geotools.api.data.DataStoreFinder
-import org.geotools.api.data.FeatureSource
-import org.geotools.api.feature.simple.SimpleFeature
-import org.geotools.data.simple.SimpleFeatureCollection
-import org.geotools.feature.FeatureCollection
-import org.geotools.geometry.jts.JTSFactoryFinder
-import java.io.File
+import com.example.myapplication.GlobalData
+import diewald_shapeFile.files.shp.shapeTypes.ShpPoint
+import diewald_shapeFile.files.shp.shapeTypes.ShpPolyLine
+import diewald_shapeFile.files.shp.shapeTypes.ShpPolygon
+import diewald_shapeFile.shapeFile.ShapeFile
+import kotlin.math.max
+import kotlin.math.min
 
-data class FolderData(
-    val shapefileCollection: FeatureCollection<*, *>,
-    val dbfRecords: FeatureCollection<*, *>,
-)
-
-// 读取shp文件夹
-// 这个文件夹里面有 .shp    .dbf   .shx   .cpg   .prj
-fun readFolder(folderPath: String): FolderData {
-    val folder = File(folderPath)
-    val files = folder.listFiles()
-    var shapefileCollection: FeatureCollection<*, *>? = null
-    var dbfRecords: FeatureCollection<*, *>? = null
-
-    // 遍历文件夹，根据文件后缀使用不同方法读取文件内容
-    for (file in files) {
-        when (file.extension.lowercase()) {
-            "shp" -> shapefileCollection = readShpOrDbfFile(file.absolutePath)
-            "dbf" -> dbfRecords = readShpOrDbfFile(file.absolutePath)
-        }
-    }
-
-    return FolderData(
-        shapefileCollection = shapefileCollection ?: throw IllegalStateException("Missing shapefile"),
-        dbfRecords = dbfRecords ?: throw IllegalStateException("Missing shapefile")
-    )
-}
-
-// 读取shp或者dbf文件（这两个文件可以使用相同的方法来读取）
-// 因为 .shp 和 .dbf 文件是 Shapefile 数据的核心文件，而 .shx、.cpg 和 .prj 文件是 Shapefile 的附属文件。
-fun readShpOrDbfFile(shapefilePath: String): FeatureCollection<*, *> {
-    // 使用 Geotools 提供的 DataStoreFinder 类来自动检测和获取适当的数据存储对象，以便读取指定的 Shapefile 文件。
-    val file = File(shapefilePath)
-    val map = HashMap<String, Any>()
-    map["url"] = file.toURI().toURL()
-    // DataStore 对象可以用于进一步操作和分析 Shapefile 数据。
-    val dataStore = DataStoreFinder.getDataStore(map)
-
-    val typeName = dataStore.typeNames.first()
-    val featureSource: FeatureSource<*, *> = dataStore.getFeatureSource(typeName)
-
-    // 返回一个包含Shapefile中所有要素的FeatureCollection对象。
-    return featureSource.features
-}
-
-
-// 在这里使用GeoTools库处理shapefileCollection和dbfRecords数据
-// 提取需要的地理数据，例如坐标信息
-// 将提取的数据转换为Polygon对象，并添加到shapefileData列表中
-fun loadShapefileData(
-    shapefileCollection: FeatureCollection<*, *>,
-    dbfRecords: FeatureCollection<*, *>
-): List<Polygon> {
-    val shapefileData = mutableListOf<Polygon>()
-
-    // 将shapefileCollection和dbfRecords转换为SimpleFeatureCollection
-    val shapefileFeatures = shapefileCollection as SimpleFeatureCollection
-    val dbfFeatures = dbfRecords as SimpleFeatureCollection
-
-    // 创建GeometryFactory实例
-    val geometryFactory = JTSFactoryFinder.getGeometryFactory(null)
-
-    // 遍历shapefileFeatures获取需要的地理数据
-    val shapefileIterator = shapefileFeatures.features()
-    while (shapefileIterator.hasNext()) {
-        val shapefileFeature = shapefileIterator.next() as SimpleFeature
-        val geometry = shapefileFeature.defaultGeometry as Polygon
-        shapefileData.add(geometry)
-    }
-    shapefileIterator.close()
-
-    return shapefileData
-}
-
-
-// 绘制地图的函数
-// 使用shapefileData和高德API绘制地图
-@Composable
-fun drawMap(shapefileData: List<Polygon>) {
-    AndroidView(
-        factory = { context ->
-            val mapView = MapView(context)
-            mapView.onCreate(null)
-            mapView.onResume()
-            mapView
-        },
-        update = { mapView ->
-            mapView.map.apply {
-                // 根据需要进行地图初始化配置
-                // 设置地图中心点、缩放级别等
-
-                // 绘制 shapefileData 中的多边形
-                val map: AMap = mapView.map
-                shapefileData.forEach { polygon ->
-                    val latLngs = mutableListOf<LatLng>()
-                    polygon.points.forEach { point ->
-                        latLngs.add(LatLng(point.latitude, point.longitude))
-                    }
-                    val options = PolygonOptions()
-                        .addAll(latLngs)
-                        .strokeColor(Color.RED) // 设置边框颜色
-                        .fillColor(Color.BLUE) // 设置填充颜色
-                    map.addPolygon(options)
-                }
-            }
-        }
-    )
-}
 
 @Composable
 fun ExecuteView(appNavController: NavHostController) {
-    // TODO 这里获取不到文件数据的问题在于，没有弹窗获取用户权限，待修改.
-    // 读取shp文件夹，获取所有数据
-    val folderPath = Environment.getExternalStorageDirectory().absolutePath + "/Download/SHP"
-    val folderData  = readFolder(folderPath)
-    val shapefileCollection = folderData.shapefileCollection
-    val dbfRecords = folderData.dbfRecords
+    val shapeFile = GlobalData.shapeFile
 
-    // 使用从shp文件得到的数据来构造用于绘制地图的List<Polygon>
-    val shapefileData = loadShapefileData(shapefileCollection, dbfRecords)
+    // 使用 Canvas 绘制 ShapeFile 数据
+    AndroidView(factory = { context ->
+        ShapeFileCanvasView(context).apply {
+            this.shapeFile = shapeFile
+        }
+    }, modifier = Modifier.fillMaxSize())
+}
 
-    // 使用shapefileData和高德API绘制地图
-    drawMap(shapefileData)
+class ShapeFileCanvasView(context: Context) : View(context) {
+    var shapeFile: ShapeFile? = null
+        set(value) {
+            field = value
+            calculateBounds(value) // 计算边界值
+            invalidate()  // 当 ShapeFile 数据更新时，请求重绘视图
+        }
+
+    // 地图数据的边界值
+    private var mapMinX = Double.MAX_VALUE  // 最小 X 坐标
+    private var mapMaxX = -Double.MAX_VALUE // 最大 X 坐标
+    private var mapMinY = Double.MAX_VALUE  // 最小 Y 坐标
+    private var mapMaxY = -Double.MAX_VALUE // 最大 Y 坐标
+
+    // 计算边界值，遍历所有的形状以计算最小和最大的 X、Y 坐标
+    private fun calculateBounds(shapeFile: ShapeFile?) {
+        shapeFile?.let { sf ->
+            for (i in 0 until sf.shP_shapeCount) {
+                when (val shape: ShpPolygon = shapeFile.getSHP_shape(i)) {
+                    is ShpPoint -> updateBounds(shape.point)
+                    is ShpPolyLine, is ShpPolygon -> {
+                        shape.points.forEach { point ->
+                            updateBounds(point)
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    private fun updateBounds(point: DoubleArray) {
+        if (point.size >= 2) {
+            mapMinX = min(mapMinX, point[0])
+            mapMaxX = max(mapMaxX, point[0])
+            mapMinY = min(mapMinY, point[1])
+            mapMaxY = max(mapMaxY, point[1])
+        }
+    }
+
+    override fun onDraw(canvas: Canvas) {
+        super.onDraw(canvas)
+        shapeFile?.let { sf ->
+            drawShapeFileOnCanvas(canvas, sf)
+        } ?: Log.d("ShapeFileCanvasView", "ShapeFile is null")
+    }
+
+
+    // 绘制 ShapeFile 数据的逻辑
+    private fun drawShapeFileOnCanvas(canvas: Canvas, shapeFile: ShapeFile) {
+        val paint = Paint().apply {
+            color = Color.BLACK
+            strokeWidth = 3f
+            style = Paint.Style.STROKE
+        }
+
+        val numberOfShapes: Int = shapeFile.shP_shapeCount
+        for (i in 0 until numberOfShapes) {
+            when (val shape: ShpPolygon = shapeFile.getSHP_shape(i)) {
+                is ShpPoint -> {
+                    // getPoint() 返回一个包含 x 和 y 坐标的数组
+                    val point = shape.point
+                    val (x, y) = convertWebMercatorToScreenCoordinates(point[0], point[1], canvas.width.toFloat(), canvas.height.toFloat())
+                    canvas.drawCircle(x, y, 5f, paint) // 绘制点
+                }
+                is ShpPolyLine -> {
+                    // getPoints() 返回一个包含所有点的二维数组
+                    val path = Path()
+                    shape.getPoints().forEachIndexed { index, point ->
+                        val (x, y) = convertWebMercatorToScreenCoordinates(point[0], point[1], canvas.width.toFloat(), canvas.height.toFloat())
+                        if (index == 0) path.moveTo(x, y) else path.lineTo(x, y)
+                    }
+                    canvas.drawPath(path, paint) // 绘制线
+                }
+                is ShpPolygon -> {
+                    // getPointsAs3DArray() 方法
+                    val parts = shape.pointsAs3DArray
+                    parts.forEach { part ->
+                        val path = Path()
+                        part.forEachIndexed { index, point ->
+                            val (x, y) = convertWebMercatorToScreenCoordinates(point[0], point[1], canvas.width.toFloat(), canvas.height.toFloat())
+                            if (index == 0) path.moveTo(x, y) else path.lineTo(x, y)
+                        }
+                        canvas.drawPath(path, paint) // 绘制多边形
+                    }
+                }
+            }
+        }
+    }
+
+    // 转换投影坐标系中的值为屏幕的坐标
+    private fun convertWebMercatorToScreenCoordinates(
+        mercatorX: Double, mercatorY: Double,
+        screenWidth: Float, screenHeight: Float
+    ): Pair<Float, Float> {
+        // 地图的实际宽度和高度（单位：米）
+        val mapWidth = mapMaxX - mapMinX
+        val mapHeight = mapMaxY - mapMinY
+
+        // 计算 x 和 y 坐标相对于地图宽度和高度的比例
+        val xRatio = (mercatorX - mapMinX) / mapWidth
+        val yRatio = (mercatorY - mapMinY) / mapHeight
+
+        // 将比例转换为屏幕坐标
+        val screenX = (xRatio * screenWidth).toFloat()
+        // Y坐标需要反转，因为屏幕坐标系的原点在左上角
+        val screenY = ((1 - yRatio) * screenHeight).toFloat()
+
+        return Pair(screenX, screenY)
+    }
+
 }
 

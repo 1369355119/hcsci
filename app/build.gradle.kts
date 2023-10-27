@@ -20,6 +20,10 @@ android {
         vectorDrawables {
             useSupportLibrary = true
         }
+
+        ndk {
+            abiFilters.addAll(listOf("armeabi", "armeabi-v7a", "arm64-v8a", "x86", "x86_64"))
+        }
     }
 
     buildTypes {
@@ -60,16 +64,18 @@ dependencies {
     implementation("androidx.navigation:navigation-compose:2.6.0")
     // viewModel
     implementation("androidx.lifecycle:lifecycle-viewmodel-compose:2.6.1")
-    // geotools 30.0
-    implementation(fileTree("lib/geotools111"))
     // 高德2D地图
     implementation("com.amap.api:map2d:latest.integration")
-    // 高德导航
-//    implementation("com.amap.api:navi-3dmap:latest.integration")
     // 高德搜索
     implementation("com.amap.api:search:latest.integration")
     // 高德定位
     implementation("com.amap.api:location:latest.integration")
+    // 权限框架
+    implementation("com.guolindev.permissionx:permissionx:1.7.1")
+    // Storage Access Framework 框架
+    implementation("androidx.documentfile:documentfile:1.0.1")
+    // diewald_shapeFileReader
+    implementation(fileTree("lib/diewald_shapeFileReader"))
 
     implementation("androidx.core:core-ktx:1.9.0")
     implementation("androidx.lifecycle:lifecycle-runtime-ktx:2.6.1")

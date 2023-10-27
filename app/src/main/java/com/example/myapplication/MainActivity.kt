@@ -1,8 +1,9 @@
 package com.example.myapplication
 
 import android.os.Bundle
-import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
+import androidx.compose.runtime.remember
+import androidx.fragment.app.FragmentActivity
 import androidx.lifecycle.viewmodel.compose.viewModel
 import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
@@ -18,18 +19,20 @@ import com.example.myapplication.ui.screen.start.StartView
 import com.example.myapplication.ui.screen.task.TaskView
 import com.example.myapplication.ui.theme.MyApplicationTheme
 
-class MainActivity : ComponentActivity() {
+class MainActivity : FragmentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         setContent {
             MyApplicationTheme {
+                // 获取对 FragmentActivity 的引用
+                val fragmentActivity = remember { this }
                 // viewModel
                 val viewModel: ViewModel = viewModel()
                 // 整体app导航控制器
                 val appNavController = rememberNavController()
                 NavHost(navController = appNavController, startDestination = AppRoute.START_SCREEN){
                     composable(AppRoute.START_SCREEN){
-                        StartView(appNavController)
+                        StartView(appNavController, fragmentActivity)
                     }
                     composable(AppRoute.SHP_SCREEN){
                         ShpView(appNavController)
