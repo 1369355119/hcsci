@@ -8,6 +8,8 @@ import androidx.lifecycle.viewmodel.compose.viewModel
 import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
 import androidx.navigation.compose.rememberNavController
+import com.arcgismaps.ApiKey
+import com.arcgismaps.ArcGISEnvironment
 import com.example.myapplication.config.AppRoute
 import com.example.myapplication.ui.screen.execute.ExecuteView
 import com.example.myapplication.ui.screen.photograph.PhotoGraphView
@@ -24,6 +26,7 @@ class MainActivity : FragmentActivity() {
         super.onCreate(savedInstanceState)
         setContent {
             MyApplicationTheme {
+                ArcGISEnvironment.apiKey = ApiKey.create("AAPK91174fd7199f415a864500f7f1e5d432AoKxeR3WJ2mdF4jeqI_oc2VRKLAIMhEROMl69rB-i6VGxUBgTUGx4zusKm_HXcFH")
                 // 获取对 FragmentActivity 的引用
                 val fragmentActivity = remember { this }
                 // viewModel

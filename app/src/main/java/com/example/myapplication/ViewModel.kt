@@ -1,9 +1,9 @@
 package com.example.myapplication
 import androidx.lifecycle.ViewModel
+import com.arcgismaps.data.ShapefileFeatureTable
 import com.example.myapplication.model.Plan
 import com.example.myapplication.model.Shp
 import com.example.myapplication.model.Task
-import diewald_shapeFile.shapeFile.ShapeFile
 
 class ViewModel : ViewModel() {
     var shps = mutableListOf(
@@ -52,18 +52,6 @@ class PermissionsViewModel : ViewModel() {
     var permissionsGranted: Boolean = false
 }
 
-class ShpFileViewModel : ViewModel() {
-    private var shapeFile: ShapeFile? = null
-
-    fun setShapeFile(file: ShapeFile) {
-        shapeFile = file
-    }
-
-    fun getShapeFile(): ShapeFile? {
-        return shapeFile
-    }
-}
-
 object GlobalData {
-    var shapeFile: ShapeFile? = null
+    var shapeFile: ShapefileFeatureTable? = null
 }

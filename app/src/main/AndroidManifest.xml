@@ -28,13 +28,6 @@
     <!--    高精度定位权限-->
     <uses-permission android:name="android.permission.ACCESS_FINE_LOCATION" />
 
-    <!--允许读设备等信息，用于问题排查-->
-    <uses-permission android:name="android.permission.READ_PHONE_STATE" />
-    <!--允许获取网络状态-->
-    <uses-permission android:name="android.permission.ACCESS_NETWORK_STATE" />
-    <!--允许获取wifi网络信息-->
-    <uses-permission android:name="android.permission.ACCESS_WIFI_STATE" />
-
 
     <application
         android:allowBackup="true"
@@ -46,11 +39,6 @@
         android:supportsRtl="true"
         android:theme="@style/Theme.MyApplication"
         tools:targetApi="31">
-
-        <!-- 高德API -->
-        <meta-data
-            android:name="com.amap.api.v2.apikey"
-            android:value="7bc8edfb4dfd7f9431b0d8ed351c57c4" />
 
         <activity
             android:name=".MainActivity"

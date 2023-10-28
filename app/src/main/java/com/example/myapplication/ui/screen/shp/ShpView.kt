@@ -4,6 +4,7 @@ import android.app.Activity
 import android.content.Context
 import android.content.Intent
 import android.net.Uri
+import android.util.Log
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.background
@@ -28,14 +29,12 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.documentfile.provider.DocumentFile
-import androidx.lifecycle.viewmodel.compose.viewModel
 import androidx.navigation.NavHostController
 import androidx.navigation.compose.rememberNavController
+import com.arcgismaps.data.ShapefileFeatureTable
 import com.example.myapplication.GlobalData
-import com.example.myapplication.ShpFileViewModel
 import com.example.myapplication.config.AppRoute
 import com.example.myapplication.ui.theme.MyApplicationTheme
-import diewald_shapeFile.shapeFile.ShapeFile
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
@@ -59,7 +58,6 @@ fun ImportShpButton(
 ) {
     val context = LocalContext.current // 获取当前 Composable 的 Context
     val scope = rememberCoroutineScope()
-    val shpFileViewModel = viewModel<ShpFileViewModel>()
 
     val directoryChooserLauncher = rememberLauncherForActivityResult(
         contract = ActivityResultContracts.StartActivityForResult()
@@ -69,7 +67,7 @@ fun ImportShpButton(
             scope.launch {
                 result.data?.data?.let { uri ->
                     // 假设readFilesFromFolder是一个挂起函数，用于处理文件夹中的文件
-                    readFilesFromFolder(uri, context, shpFileViewModel)
+                    readFilesFromFolder(uri, context)
                     onDirectoryChosen(uri)
                 }
                 onLoadingChange(false) // 禁用加载状态
@@ -99,7 +97,7 @@ fun ImportShpButton(
     }
 }
 
-suspend fun readFilesFromFolder(folderUri: Uri, context: Context, shpFileViewModel: ShpFileViewModel) {
+suspend fun readFilesFromFolder(folderUri: Uri, context: Context) {
     withContext(Dispatchers.IO) {  // 确保在IO线程执行文件操作
         // 创建临时文件夹
         val tempDir = File(context.cacheDir, "shpFilesTemp")
@@ -114,10 +112,23 @@ suspend fun readFilesFromFolder(folderUri: Uri, context: Context, shpFileViewMod
         }
 
         // 现在tempDir包含了所有复制的文件，可以用它来初始化ShapeFile
-        val shapefile = ShapeFile(tempDir.absolutePath, "Converted_Graphics").READ()
-        // 将shapefile存储在ViewModel中
-        shpFileViewModel.setShapeFile(shapefile)
-        GlobalData.shapeFile = shapefile
+        // 搜索 .shp 文件
+        val shpFile = tempDir.listFiles().firstOrNull { it.extension == "shp" }
+        if (shpFile != null) {
+            try {
+                // 使用 ArcGIS SDK 加载 Shapefile
+                val shapefileTable = ShapefileFeatureTable(shpFile.canonicalPath)
+                shapefileTable.load().onSuccess {
+                    GlobalData.shapeFile = shapefileTable
+                }.onFailure {
+                    Log.e("Shapefile", "Error loading shapefile: ${it.message}")
+                }
+            } catch (e: Exception) {
+                Log.e("Shapefile", "Error loading shapefile: ${e.message}")
+            }
+        } else {
+            Log.e("Shapefile", "No .shp file found in the folder")
+        }
 
         // 删除临时文件夹及其内容
         deleteRecursively(tempDir)
