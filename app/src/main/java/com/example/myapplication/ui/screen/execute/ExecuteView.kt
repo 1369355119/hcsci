@@ -5,6 +5,7 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -20,6 +21,7 @@ import com.example.myapplication.GlobalData
 import androidx.compose.ui.viewinterop.AndroidView
 import com.arcgismaps.ApiKey
 import com.arcgismaps.ArcGISEnvironment
+import com.arcgismaps.location.LocationDisplayAutoPanMode
 import com.arcgismaps.mapping.Viewpoint
 import com.arcgismaps.mapping.view.MapView
 import com.example.myapplication.BuildConfig
@@ -34,7 +36,7 @@ fun ExecuteView(appNavController: NavHostController) {
 
     // 初始化并只加载一次底图
     val map = remember {
-        ArcGISMap(BasemapStyle.ArcGISTopographic).also {
+        ArcGISMap(BasemapStyle.ArcGISImageryStandard).also {
             ArcGISEnvironment.apiKey = ApiKey.create(BuildConfig.API_KEY)
         }
     }
@@ -44,6 +46,13 @@ fun ExecuteView(appNavController: NavHostController) {
             // 当退出 ExecuteView 时移除 FeatureLayer
             map.operationalLayers.removeAll { it is FeatureLayer }
         }
+    }
+
+    // 定位
+    val locationDisplay = mapView.locationDisplay
+    locationDisplay.setAutoPanMode(LocationDisplayAutoPanMode.Recenter)
+    LaunchedEffect(locationDisplay) {
+        locationDisplay.dataSource.start()
     }
 
     featureLayer = GlobalData.featureLayer
@@ -64,9 +73,6 @@ fun ExecuteView(appNavController: NavHostController) {
                 map.operationalLayers.add(layer)
             }
         }
-
-        // 设置地图的初始视点
-        mapView.setViewpoint(Viewpoint(30.43083, 103.97722, 11000.0))
     }
 }
 
