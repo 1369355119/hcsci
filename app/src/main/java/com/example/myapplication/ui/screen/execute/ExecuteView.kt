@@ -1,68 +1,95 @@
 package com.example.myapplication.ui.screen.execute
 
 import android.util.Log
+import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
+import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalLifecycleOwner
 import androidx.navigation.NavHostController
 import com.arcgismaps.mapping.ArcGISMap
 import com.arcgismaps.mapping.BasemapStyle
 import com.arcgismaps.mapping.layers.FeatureLayer
 import com.example.myapplication.GlobalData
 import androidx.compose.ui.viewinterop.AndroidView
+import com.arcgismaps.ApiKey
+import com.arcgismaps.ArcGISEnvironment
 import com.arcgismaps.mapping.Viewpoint
 import com.arcgismaps.mapping.view.MapView
-import kotlinx.coroutines.CoroutineScope
-import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.launch
+import com.example.myapplication.BuildConfig
 
 @Composable
 fun ExecuteView(appNavController: NavHostController) {
     // FeatureLayer 状态
     var featureLayer by remember { mutableStateOf<FeatureLayer?>(null) }
 
-    LaunchedEffect(Unit) {
-        // 加载 Shapefile 数据并设置 FeatureLayer
-        loadShapefile { layer ->
-            featureLayer = layer
+    // 记忆 MapView 并处理它的生命周期
+    val mapView = rememberMapViewWithLifecycle()
+
+    // 初始化并只加载一次底图
+    val map = remember {
+        ArcGISMap(BasemapStyle.ArcGISTopographic).also {
+            ArcGISEnvironment.apiKey = ApiKey.create(BuildConfig.API_KEY)
         }
     }
 
-    // 当 featureLayer 加载完成，显示地图
-    featureLayer?.let { layer ->
-        MapViewContainer(featureLayer = layer)
+    DisposableEffect(Unit) {
+        onDispose {
+            // 当退出 ExecuteView 时移除 FeatureLayer
+            map.operationalLayers.removeAll { it is FeatureLayer }
+        }
     }
-}
 
-// 显示 ArcGIS 地图的 Composable
-@Composable
-fun MapViewContainer(featureLayer: FeatureLayer) {
-    AndroidView(factory = { context ->
-        MapView(context).apply {
-            // 设置基础地图样式
-            map = ArcGISMap().also {
-                it.operationalLayers.add(featureLayer)
-                // 可以调整视点以适应你的 shapefile 数据
-                setViewpoint(Viewpoint(30.0, -100.0, 1000.0))
+    featureLayer = GlobalData.featureLayer
+
+    AndroidView(
+        modifier = Modifier.fillMaxSize(),
+        factory = { mapView }
+    ) { mapView ->
+        mapView.map = map
+
+        // 在地图上添加 FeatureLayer
+        featureLayer?.let { layer ->
+            // 检查当前 Map 实例是否已经包含这个 FeatureLayer
+            if (!map.operationalLayers.contains(layer)) {
+                // 移除先前的相同类型的 FeatureLayer
+                map.operationalLayers.removeAll { it is FeatureLayer }
+                // 添加新的 FeatureLayer
+                map.operationalLayers.add(layer)
             }
         }
-    })
+
+        // 设置地图的初始视点
+        mapView.setViewpoint(Viewpoint(30.43083, 103.97722, 11000.0))
+    }
 }
 
-// 加载shapefile数据的函数，现在支持一个回调来处理 FeatureLayer
-private suspend fun loadShapefile(onLayerLoaded: (FeatureLayer) -> Unit) {
-    // shapefile数据已经在另一个页面读取出来，这里直接拿来用
-    val shapeFileTable = GlobalData.shapeFile
-    shapeFileTable?.let {
-        shapeFileTable.load().onSuccess {
-            // 使用 shapefile 加载要素图层
-            val featureLayer = FeatureLayer.createWithFeatureTable(shapeFileTable)
-            onLayerLoaded(featureLayer)
-        }.onFailure {
-            Log.d("Shapefile", "Error loading shapefile: ${it.message}")
+@Composable
+fun rememberMapViewWithLifecycle(): MapView {
+    val context = LocalContext.current
+    val lifecycleOwner = LocalLifecycleOwner.current
+    val mapView = remember {
+        MapView(context).apply {
+            // 初始化地图视图
         }
     }
+
+    // 确保 MapView 能够感知到 Compose 的生命周期
+    DisposableEffect(lifecycleOwner, mapView) {
+        // 添加观察者
+        lifecycleOwner.lifecycle.addObserver(mapView)
+        // 当组件销毁时，这个块会被调用
+        onDispose {
+            // 当组件销毁时，这个块会被调用
+            lifecycleOwner.lifecycle.removeObserver(mapView)
+        }
+    }
+
+    return mapView
 }

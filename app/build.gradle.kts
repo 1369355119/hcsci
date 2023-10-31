@@ -24,6 +24,12 @@ android {
         ndk {
             abiFilters.addAll(listOf("armeabi", "armeabi-v7a", "arm64-v8a", "x86", "x86_64"))
         }
+
+        // 从 gradle.properties(Global) 获取 API 密钥，并去除引号
+        val rawApiKey = findProperty("API_KEY") as String? ?: "\"NO_API_KEY\""
+        val apiKey = rawApiKey.removeSurrounding("\"")
+        // 在 BuildConfig 中添加处理后的 API 密钥
+        buildConfigField("String", "API_KEY", "\"$apiKey\"")
     }
 
     buildTypes {
@@ -42,6 +48,7 @@ android {
     buildFeatures {
         compose = true
         viewBinding = true
+        buildConfig = true
     }
     composeOptions {
         kotlinCompilerExtensionVersion = "1.4.3"

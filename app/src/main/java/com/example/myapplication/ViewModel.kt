@@ -1,6 +1,7 @@
 package com.example.myapplication
 import androidx.lifecycle.ViewModel
 import com.arcgismaps.data.ShapefileFeatureTable
+import com.arcgismaps.mapping.layers.FeatureLayer
 import com.example.myapplication.model.Plan
 import com.example.myapplication.model.Shp
 import com.example.myapplication.model.Task
@@ -54,4 +55,5 @@ class PermissionsViewModel : ViewModel() {
 
 object GlobalData {
     var shapeFile: ShapefileFeatureTable? = null
+    var featureLayer: FeatureLayer? = null
 }

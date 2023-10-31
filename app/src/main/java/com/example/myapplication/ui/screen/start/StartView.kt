@@ -10,10 +10,12 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.res.stringResource
 import androidx.fragment.app.FragmentActivity
 import androidx.lifecycle.viewmodel.compose.viewModel
 import androidx.navigation.NavHostController
 import com.example.myapplication.PermissionsViewModel
+import com.example.myapplication.R
 import com.example.myapplication.config.AppRoute
 import com.permissionx.guolindev.PermissionX
 import kotlinx.coroutines.delay
@@ -30,7 +32,7 @@ fun StartView(appNavController: NavHostController, fragmentActivity: FragmentAct
         horizontalAlignment = Alignment.CenterHorizontally
     ) {
         // 在页面上显示"瀚辰光翼出品"
-        Text(text = "瀚辰光翼出品")
+        Text(text = stringResource(R.string.logo))
 
         // 显示1秒后弹出权限申请
         LaunchedEffect(Unit) {

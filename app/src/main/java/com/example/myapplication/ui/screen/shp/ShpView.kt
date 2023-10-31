@@ -32,6 +32,7 @@ import androidx.documentfile.provider.DocumentFile
 import androidx.navigation.NavHostController
 import androidx.navigation.compose.rememberNavController
 import com.arcgismaps.data.ShapefileFeatureTable
+import com.arcgismaps.mapping.layers.FeatureLayer
 import com.example.myapplication.GlobalData
 import com.example.myapplication.config.AppRoute
 import com.example.myapplication.ui.theme.MyApplicationTheme
@@ -120,6 +121,8 @@ suspend fun readFilesFromFolder(folderUri: Uri, context: Context) {
                 val shapefileTable = ShapefileFeatureTable(shpFile.canonicalPath)
                 shapefileTable.load().onSuccess {
                     GlobalData.shapeFile = shapefileTable
+                    // 根据 ArcGIS API 的使用方式和对象的所有权模型，一旦一个 FeatureTable 被用于创建一个 FeatureLayer，它可能就不能被用于创建另一个 FeatureLayer 实例。
+                    GlobalData.featureLayer = FeatureLayer.createWithFeatureTable(shapefileTable)
                 }.onFailure {
                     Log.e("Shapefile", "Error loading shapefile: ${it.message}")
                 }
