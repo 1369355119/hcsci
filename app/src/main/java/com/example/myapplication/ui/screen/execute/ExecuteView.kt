@@ -7,16 +7,11 @@ import android.hardware.Sensor
 import android.hardware.SensorEvent
 import android.hardware.SensorEventListener
 import android.hardware.SensorManager
-import android.util.Log
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
-import androidx.compose.runtime.collectAsState
-import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
-import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalLifecycleOwner
@@ -31,10 +26,7 @@ import androidx.core.graphics.drawable.toBitmap
 import com.arcgismaps.ApiKey
 import com.arcgismaps.ArcGISEnvironment
 import com.arcgismaps.location.LocationDisplayAutoPanMode
-import com.arcgismaps.mapping.Viewpoint
 import com.arcgismaps.mapping.symbology.PictureMarkerSymbol
-import com.arcgismaps.mapping.view.Graphic
-import com.arcgismaps.mapping.view.GraphicsOverlay
 import com.arcgismaps.mapping.view.LocationDisplay
 import com.arcgismaps.mapping.view.MapView
 import com.example.myapplication.BuildConfig
@@ -166,6 +158,16 @@ fun DisplayMap(mapView: MapView, map: ArcGISMap, featureLayer: FeatureLayer?) {
                 map.operationalLayers.removeAll { it is FeatureLayer }
                 // 添加新的FeatureLayer
                 map.operationalLayers.add(layer)
+            }
+        }
+    }
+
+    // 当Composable被移除时执行清理
+    DisposableEffect(mapView) {
+        onDispose {
+            // 移除FeatureLayer
+            featureLayer?.let { layer ->
+                map.operationalLayers.remove(layer)
             }
         }
     }
