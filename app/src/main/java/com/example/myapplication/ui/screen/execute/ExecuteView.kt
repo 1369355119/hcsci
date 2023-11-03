@@ -35,108 +35,136 @@ import com.arcgismaps.mapping.Viewpoint
 import com.arcgismaps.mapping.symbology.PictureMarkerSymbol
 import com.arcgismaps.mapping.view.Graphic
 import com.arcgismaps.mapping.view.GraphicsOverlay
+import com.arcgismaps.mapping.view.LocationDisplay
 import com.arcgismaps.mapping.view.MapView
 import com.example.myapplication.BuildConfig
 import com.example.myapplication.R
 
 @Composable
 fun ExecuteView(appNavController: NavHostController) {
-    // FeatureLayer 状态
-    var featureLayer by remember { mutableStateOf<FeatureLayer?>(null) }
-
-    // 记忆 MapView 并处理它的生命周期
+    // 记忆并处理MapView的生命周期
     val mapView = rememberMapViewWithLifecycle()
+    // 初始化地图并设置API密钥
+    val map = rememberMapWithApiKey()
+    // 获取地图的位置显示
+    val locationDisplay = mapView.locationDisplay
 
-    // 初始化并只加载一次底图
-    val map = remember {
+    // 设置位置显示的图标和模式
+    SetupLocationDisplay(locationDisplay)
+    // 处理设备方向传感器更新
+    HandleSensorUpdates(locationDisplay)
+
+    // 从全局数据中获取FeatureLayer
+    val featureLayer = GlobalData.featureLayer
+    // 显示地图和FeatureLayer
+    DisplayMap(mapView, map, featureLayer)
+}
+
+@Composable
+fun rememberMapWithApiKey(): ArcGISMap {
+    // 使用remember保证只初始化一次
+    return remember {
         ArcGISMap(BasemapStyle.ArcGISImageryStandard).also {
+            // 设置ArcGIS API密钥
             ArcGISEnvironment.apiKey = ApiKey.create(BuildConfig.API_KEY)
         }
     }
+}
 
-    DisposableEffect(Unit) {
-        onDispose {
-            // 当退出 ExecuteView 时移除 FeatureLayer
-            map.operationalLayers.removeAll { it is FeatureLayer }
-        }
-    }
-
-    // 定位
-    val locationDisplay = mapView.locationDisplay
-    // 获取 NinePatchDrawable 的实例
-    val navigationDrawable = ContextCompat.getDrawable(LocalContext.current, R.drawable.locationdisplaynavigation) as? NinePatchDrawable
-    // 将 NinePatchDrawable 转换为 Bitmap
-    val navigationBitmap = navigationDrawable?.toBitmap()
-    // 将 Bitmap 转换为 BitmapDrawable
-    val navigationBitmapDrawable = navigationBitmap?.let { BitmapDrawable(LocalContext.current.resources, it) }
-    // 创建 PictureMarkerSymbol
-    val navigationSymbol = navigationBitmapDrawable?.let { PictureMarkerSymbol.createWithImage(it) }
-    // 应用到 LocationDisplay
-    navigationSymbol?.let {
-        locationDisplay.defaultSymbol = it // 把默认图标给更换成导航图标
-    }
-    // 重新居中模式
-    locationDisplay.setAutoPanMode(LocationDisplayAutoPanMode.Recenter)
-
-    // 获取系统服务
+@Composable
+fun SetupLocationDisplay(locationDisplay: LocationDisplay) {
+    // 获取当前上下文
     val context = LocalContext.current
-    val sensorManager = context.getSystemService(Context.SENSOR_SERVICE) as SensorManager?
-    val rotationVectorSensor = sensorManager?.getDefaultSensor(Sensor.TYPE_ROTATION_VECTOR)
+    // 获取导航图标的drawable资源
+    val navigationDrawable = ContextCompat.getDrawable(context, R.drawable.locationdisplaynavigation) as? NinePatchDrawable
+    // 将drawable转换为PictureMarkerSymbol
+    val navigationSymbol = navigationDrawable?.toBitmap()?.let { BitmapDrawable(context.resources, it) }
+        ?.let { PictureMarkerSymbol.createWithImage(it) }
 
-    // 创建一个 SensorEventListener
-    val sensorEventListener = remember {
-        object : SensorEventListener {
-            override fun onAccuracyChanged(sensor: Sensor?, accuracy: Int) {}
-
-            override fun onSensorChanged(event: SensorEvent?) {
-                event?.let {
-                    if (it.sensor.type == Sensor.TYPE_ROTATION_VECTOR) {
-                        // 计算旋转矩阵
-                        val rotationMatrix = FloatArray(9)
-                        SensorManager.getRotationMatrixFromVector(rotationMatrix, it.values)
-                        // 计算设备的方向
-                        val orientationAngles = FloatArray(3)
-                        SensorManager.getOrientation(rotationMatrix, orientationAngles)
-                        // 更新位置显示的图标方向
-                        val azimuth = Math.toDegrees(orientationAngles[0].toDouble()).toFloat()
-                        // 这里可以根据方位角更新图标的旋转
-                        // 注意：您可能需要将 azimuth 转换为适合您图标的旋转角度
-                        // 更新图标的旋转
-                        navigationSymbol?.angle = azimuth
-                    }
-                }
-            }
-        }
+    // 应用导航图标到位置显示
+    navigationSymbol?.let {
+        locationDisplay.defaultSymbol = it
+        // 设置自动居中模式
+        locationDisplay.setAutoPanMode(LocationDisplayAutoPanMode.Recenter)
     }
 
-    // 注册传感器监听器
+    // 启动位置显示的数据源
+    LaunchedEffect(locationDisplay) {
+        locationDisplay.dataSource.start()
+    }
+}
+
+@Composable
+fun HandleSensorUpdates(locationDisplay: LocationDisplay) {
+    // 获取当前上下文
+    val context = LocalContext.current
+    // 获取系统的传感器服务
+    val sensorManager = context.getSystemService(Context.SENSOR_SERVICE) as SensorManager?
+    // 获取旋转向量传感器
+    val rotationVectorSensor = sensorManager?.getDefaultSensor(Sensor.TYPE_ROTATION_VECTOR)
+    // 创建并记住传感器事件监听器
+    val sensorEventListener = rememberSensorEventListener(locationDisplay)
+
+    // 注册传感器监听器，并在Composable移除时注销
     DisposableEffect(sensorManager, sensorEventListener) {
         sensorManager?.registerListener(sensorEventListener, rotationVectorSensor, SensorManager.SENSOR_DELAY_UI)
         onDispose {
             sensorManager?.unregisterListener(sensorEventListener)
         }
     }
+}
 
-    LaunchedEffect(locationDisplay) {
-        //启动地图视图的位置显示
-        locationDisplay.dataSource.start()
+@Composable
+fun rememberSensorEventListener(locationDisplay: LocationDisplay): SensorEventListener {
+    // 获取位置显示的默认符号作为PictureMarkerSymbol
+    val navigationSymbol = locationDisplay.defaultSymbol as? PictureMarkerSymbol
+    // 创建并记住传感器事件监听器
+    return remember {
+        object : SensorEventListener {
+            override fun onAccuracyChanged(sensor: Sensor?, accuracy: Int) {}
+            override fun onSensorChanged(event: SensorEvent?) {
+                event?.let {
+                    // 当传感器类型为旋转向量时
+                    if (it.sensor.type == Sensor.TYPE_ROTATION_VECTOR) {
+                        // 获取方位角并更新图标旋转角度
+                        val azimuth = getAzimuthFromSensorEvent(it)
+                        navigationSymbol?.angle = azimuth
+                    }
+                }
+            }
+        }
     }
+}
 
-    featureLayer = GlobalData.featureLayer
+// 从传感器事件中提取方位角
+fun getAzimuthFromSensorEvent(event: SensorEvent): Float {
+    // 创建旋转矩阵
+    val rotationMatrix = FloatArray(9)
+    // 从旋转向量获取旋转矩阵
+    SensorManager.getRotationMatrixFromVector(rotationMatrix, event.values)
+    // 创建方向数组
+    val orientationAngles = FloatArray(3)
+    // 获取方向
+    SensorManager.getOrientation(rotationMatrix, orientationAngles)
+    // 返回以度为单位的方位角
+    return Math.toDegrees(orientationAngles[0].toDouble()).toFloat()
+}
 
+@Composable
+fun DisplayMap(mapView: MapView, map: ArcGISMap, featureLayer: FeatureLayer?) {
+    // 使用AndroidView来显示MapView
     AndroidView(
         modifier = Modifier.fillMaxSize(),
         factory = { mapView }
     ) { mapView ->
+        // 设置地图实例
         mapView.map = map
-
-        // 在地图上添加 FeatureLayer
+        // 如果FeatureLayer不为空，则添加到地图的操作图层中
         featureLayer?.let { layer ->
-            // 检查当前 Map 实例是否已经包含这个 FeatureLayer
             if (!map.operationalLayers.contains(layer)) {
-                // 移除先前的相同类型的 FeatureLayer
+                // 移除之前的FeatureLayer
                 map.operationalLayers.removeAll { it is FeatureLayer }
-                // 添加新的 FeatureLayer
+                // 添加新的FeatureLayer
                 map.operationalLayers.add(layer)
             }
         }
