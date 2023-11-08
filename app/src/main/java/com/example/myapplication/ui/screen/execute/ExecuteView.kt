@@ -1,5 +1,6 @@
 package com.example.myapplication.ui.screen.execute
 
+import SerialPortClient
 import android.content.Context
 import android.graphics.drawable.BitmapDrawable
 import android.graphics.drawable.NinePatchDrawable
@@ -26,11 +27,13 @@ import androidx.core.graphics.drawable.toBitmap
 import com.arcgismaps.ApiKey
 import com.arcgismaps.ArcGISEnvironment
 import com.arcgismaps.location.LocationDisplayAutoPanMode
+import com.arcgismaps.location.NmeaLocationDataSource
 import com.arcgismaps.mapping.symbology.PictureMarkerSymbol
 import com.arcgismaps.mapping.view.LocationDisplay
 import com.arcgismaps.mapping.view.MapView
 import com.example.myapplication.BuildConfig
 import com.example.myapplication.R
+import kotlinx.coroutines.launch
 
 @Composable
 fun ExecuteView(appNavController: NavHostController) {
@@ -41,8 +44,11 @@ fun ExecuteView(appNavController: NavHostController) {
     // 获取地图的位置显示
     val locationDisplay = mapView.locationDisplay
 
+    // 创建NMEA位置数据源
+    val nmeaLocationDataSource = remember { NmeaLocationDataSource() }
+
     // 设置位置显示的图标和模式
-    SetupLocationDisplay(locationDisplay)
+    SetupLocationDisplay(locationDisplay, nmeaLocationDataSource)
     // 处理设备方向传感器更新
     HandleSensorUpdates(locationDisplay)
 
@@ -50,6 +56,31 @@ fun ExecuteView(appNavController: NavHostController) {
     val featureLayer = GlobalData.featureLayer
     // 显示地图和FeatureLayer
     DisplayMap(mapView, map, featureLayer)
+
+    // 获取应用的Context
+    val context = LocalContext.current
+    // 创建SerialPortClient实例
+    val serialPortClient = remember { SerialPortClient(context) }
+
+    // 启动串口服务客户端并接收NMEA数据
+    LaunchedEffect(Unit) {
+        serialPortClient.start()
+
+        // 在协程中收集NMEA数据
+        launch {
+            serialPortClient.nmeaDataFlow.collect { nmeaData ->
+                // 处理接收到的NMEA数据
+                nmeaLocationDataSource.pushData(nmeaData.toByteArray())
+            }
+        }
+    }
+
+    // 当Compose退出时停止串口服务客户端
+    DisposableEffect(Unit) {
+        onDispose {
+            serialPortClient.stop()
+        }
+    }
 }
 
 @Composable
@@ -64,7 +95,7 @@ fun rememberMapWithApiKey(): ArcGISMap {
 }
 
 @Composable
-fun SetupLocationDisplay(locationDisplay: LocationDisplay) {
+fun SetupLocationDisplay(locationDisplay: LocationDisplay, nmeaLocationDataSource: NmeaLocationDataSource) {
     // 获取当前上下文
     val context = LocalContext.current
     // 获取导航图标的drawable资源
@@ -82,6 +113,8 @@ fun SetupLocationDisplay(locationDisplay: LocationDisplay) {
 
     // 启动位置显示的数据源
     LaunchedEffect(locationDisplay) {
+        // 设置NMEA位置数据源
+        locationDisplay.dataSource = nmeaLocationDataSource
         locationDisplay.dataSource.start()
     }
 }
