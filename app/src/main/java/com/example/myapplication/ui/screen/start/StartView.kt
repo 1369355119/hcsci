@@ -41,10 +41,11 @@ fun StartView(appNavController: NavHostController, fragmentActivity: FragmentAct
             // 请求权限
             PermissionX.init(fragmentActivity)
                 .permissions(
+                    Manifest.permission.ACCESS_COARSE_LOCATION,
                     Manifest.permission.ACCESS_FINE_LOCATION,
                     Manifest.permission.CAMERA,
-//                    Manifest.permission.READ_EXTERNAL_STORAGE,
-//                    Manifest.permission.WRITE_EXTERNAL_STORAGE
+                    Manifest.permission.READ_EXTERNAL_STORAGE,
+                    Manifest.permission.WRITE_EXTERNAL_STORAGE
                 )
                 .onExplainRequestReason { scope, deniedList ->
                     val message = "需要您同意以下权限才能正常使用"

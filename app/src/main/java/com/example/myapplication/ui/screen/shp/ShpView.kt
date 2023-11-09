@@ -172,7 +172,7 @@ fun ShpView(appNavController: NavHostController) {
         ) {
             ChooseShpButton {
                 // 处理按钮点击事件
-                appNavController.navigate(AppRoute.SHP_LIST_SCREEN)
+                appNavController.navigate(AppRoute.EXECUTE_SCREEN)
             }
             ImportShpButton(
                 onLoadingChange = { isLoading = it },

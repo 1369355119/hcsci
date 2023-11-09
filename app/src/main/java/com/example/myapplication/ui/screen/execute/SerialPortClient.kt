@@ -17,8 +17,8 @@ class SerialPortClient(context: Context) {
     // 用于接收串口数据的回调
     private val readCallback = object : ISerialPortReadCallback.Stub() {
         override fun onReadReceived(dev: Int, bytes: ByteArray, length: Int) {
-            // 假设我们只关心RNSS模式下的数据
-            if (dev == 2) { // RNSS模式的设备ID假设为2
+            // 只关心RNSS模式下的数据
+            if (dev == 2) { // RNSS模式的设备ID为2
                 val data = String(bytes, 0, length)
                 // 将数据发送到Channel，供Flow使用
                 nmeaDataChannel.trySend(data)
@@ -32,6 +32,9 @@ class SerialPortClient(context: Context) {
             serialPortService = ISerialPortControl.Stub.asInterface(service)
             try {
                 serialPortService?.registerCallback(appContext.packageName, readCallback)
+                // 设备ID为2是RNSS模式
+                val devId = 2
+                serialPortService?.startRead(devId)
             } catch (e: Exception) {
                 e.printStackTrace()
             }

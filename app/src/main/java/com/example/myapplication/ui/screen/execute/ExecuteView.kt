@@ -2,8 +2,6 @@ package com.example.myapplication.ui.screen.execute
 
 import SerialPortClient
 import android.content.Context
-import android.graphics.drawable.BitmapDrawable
-import android.graphics.drawable.NinePatchDrawable
 import android.hardware.Sensor
 import android.hardware.SensorEvent
 import android.hardware.SensorEventListener
@@ -22,8 +20,6 @@ import com.arcgismaps.mapping.BasemapStyle
 import com.arcgismaps.mapping.layers.FeatureLayer
 import com.example.myapplication.GlobalData
 import androidx.compose.ui.viewinterop.AndroidView
-import androidx.core.content.ContextCompat
-import androidx.core.graphics.drawable.toBitmap
 import com.arcgismaps.ApiKey
 import com.arcgismaps.ArcGISEnvironment
 import com.arcgismaps.location.LocationDisplayAutoPanMode
@@ -32,7 +28,6 @@ import com.arcgismaps.mapping.symbology.PictureMarkerSymbol
 import com.arcgismaps.mapping.view.LocationDisplay
 import com.arcgismaps.mapping.view.MapView
 import com.example.myapplication.BuildConfig
-import com.example.myapplication.R
 import kotlinx.coroutines.launch
 
 @Composable
@@ -50,7 +45,7 @@ fun ExecuteView(appNavController: NavHostController) {
     // 设置位置显示的图标和模式
     SetupLocationDisplay(locationDisplay, nmeaLocationDataSource)
     // 处理设备方向传感器更新
-    HandleSensorUpdates(locationDisplay)
+//    HandleSensorUpdates(locationDisplay)
 
     // 从全局数据中获取FeatureLayer
     val featureLayer = GlobalData.featureLayer
@@ -96,20 +91,8 @@ fun rememberMapWithApiKey(): ArcGISMap {
 
 @Composable
 fun SetupLocationDisplay(locationDisplay: LocationDisplay, nmeaLocationDataSource: NmeaLocationDataSource) {
-    // 获取当前上下文
-    val context = LocalContext.current
-    // 获取导航图标的drawable资源
-    val navigationDrawable = ContextCompat.getDrawable(context, R.drawable.locationdisplaynavigation) as? NinePatchDrawable
-    // 将drawable转换为PictureMarkerSymbol
-    val navigationSymbol = navigationDrawable?.toBitmap()?.let { BitmapDrawable(context.resources, it) }
-        ?.let { PictureMarkerSymbol.createWithImage(it) }
-
-    // 应用导航图标到位置显示
-    navigationSymbol?.let {
-        locationDisplay.defaultSymbol = it
-        // 设置自动居中模式
-        locationDisplay.setAutoPanMode(LocationDisplayAutoPanMode.Recenter)
-    }
+    // 设置自动居中模式
+    locationDisplay.setAutoPanMode(LocationDisplayAutoPanMode.Recenter)
 
     // 启动位置显示的数据源
     LaunchedEffect(locationDisplay) {
