@@ -1,7 +1,8 @@
 package com.example.myapplication.ui.screen.execute
 
-import SerialPortClient
 import android.content.Context
+import android.graphics.drawable.BitmapDrawable
+import android.graphics.drawable.NinePatchDrawable
 import android.hardware.Sensor
 import android.hardware.SensorEvent
 import android.hardware.SensorEventListener
@@ -20,6 +21,8 @@ import com.arcgismaps.mapping.BasemapStyle
 import com.arcgismaps.mapping.layers.FeatureLayer
 import com.example.myapplication.GlobalData
 import androidx.compose.ui.viewinterop.AndroidView
+import androidx.core.content.ContextCompat
+import androidx.core.graphics.drawable.toBitmap
 import com.arcgismaps.ApiKey
 import com.arcgismaps.ArcGISEnvironment
 import com.arcgismaps.location.LocationDisplayAutoPanMode
@@ -28,6 +31,7 @@ import com.arcgismaps.mapping.symbology.PictureMarkerSymbol
 import com.arcgismaps.mapping.view.LocationDisplay
 import com.arcgismaps.mapping.view.MapView
 import com.example.myapplication.BuildConfig
+import com.example.myapplication.R
 import kotlinx.coroutines.launch
 
 @Composable
@@ -42,10 +46,10 @@ fun ExecuteView(appNavController: NavHostController) {
     // 创建NMEA位置数据源
     val nmeaLocationDataSource = remember { NmeaLocationDataSource() }
 
-    // 设置位置显示的图标和模式
+    // 设置位置显示的符号、显示的数据源和模式:使用NMEA
     SetupLocationDisplay(locationDisplay, nmeaLocationDataSource)
-    // 处理设备方向传感器更新
-//    HandleSensorUpdates(locationDisplay)
+    // 处理设备传感器更新，让定位符号变成指南针
+    HandleSensorUpdates(locationDisplay)
 
     // 从全局数据中获取FeatureLayer
     val featureLayer = GlobalData.featureLayer
@@ -67,6 +71,19 @@ fun ExecuteView(appNavController: NavHostController) {
                 // 处理接收到的NMEA数据
                 nmeaLocationDataSource.pushData(nmeaData.toByteArray())
             }
+
+//            serialPortClient.nmeaDataFlow.collect { nmeaData ->
+//                // 处理接收到的NMEA数据:
+//                // 只需要GNRMC和GNGGA，把GNRMC中的航向信息清空
+//                if (nmeaData.startsWith("\$GNRMC")) {
+//                    val nmeaFields = nmeaData.split(",").toMutableList()
+//                    nmeaFields[8] = "" // 清空航向数据
+//                    nmeaLocationDataSource.pushData(nmeaFields.joinToString(",").toByteArray())
+//                }
+//                if (nmeaData.startsWith("\$GNGGA")) {
+//                    nmeaLocationDataSource.pushData(nmeaData.toByteArray())
+//                }
+//            }
         }
     }
 
@@ -91,6 +108,21 @@ fun rememberMapWithApiKey(): ArcGISMap {
 
 @Composable
 fun SetupLocationDisplay(locationDisplay: LocationDisplay, nmeaLocationDataSource: NmeaLocationDataSource) {
+    // 获取当前上下文
+    val context = LocalContext.current
+    // 获取导航图标的drawable资源
+    val navigationDrawable = ContextCompat.getDrawable(context, R.drawable.locationdisplaynavigation) as? NinePatchDrawable
+    // 将drawable转换为PictureMarkerSymbol
+    val navigationSymbol = navigationDrawable?.toBitmap()?.let { BitmapDrawable(context.resources, it) }
+        ?.let { PictureMarkerSymbol.createWithImage(it) }
+
+    // 应用导航图标到位置显示
+    navigationSymbol?.let {
+        locationDisplay.defaultSymbol = it
+        locationDisplay.courseSymbol = it //courseSymbol 通常用于表示设备的移动方向
+        locationDisplay.headingSymbol = it //headingSymbol 用于表示设备面对的方向
+    }
+
     // 设置自动居中模式
     locationDisplay.setAutoPanMode(LocationDisplayAutoPanMode.Recenter)
 
@@ -108,14 +140,16 @@ fun HandleSensorUpdates(locationDisplay: LocationDisplay) {
     val context = LocalContext.current
     // 获取系统的传感器服务
     val sensorManager = context.getSystemService(Context.SENSOR_SERVICE) as SensorManager?
-    // 获取旋转向量传感器
-    val rotationVectorSensor = sensorManager?.getDefaultSensor(Sensor.TYPE_ROTATION_VECTOR)
+    // 获取磁力计和加速度传感器
+    val magneticFieldSensor = sensorManager?.getDefaultSensor(Sensor.TYPE_MAGNETIC_FIELD)
+    val accelerometerSensor = sensorManager?.getDefaultSensor(Sensor.TYPE_ACCELEROMETER)
     // 创建并记住传感器事件监听器
     val sensorEventListener = rememberSensorEventListener(locationDisplay)
 
     // 注册传感器监听器，并在Composable移除时注销
     DisposableEffect(sensorManager, sensorEventListener) {
-        sensorManager?.registerListener(sensorEventListener, rotationVectorSensor, SensorManager.SENSOR_DELAY_UI)
+        sensorManager?.registerListener(sensorEventListener, magneticFieldSensor, SensorManager.SENSOR_DELAY_UI)
+        sensorManager?.registerListener(sensorEventListener, accelerometerSensor, SensorManager.SENSOR_DELAY_UI)
         onDispose {
             sensorManager?.unregisterListener(sensorEventListener)
         }
@@ -124,38 +158,42 @@ fun HandleSensorUpdates(locationDisplay: LocationDisplay) {
 
 @Composable
 fun rememberSensorEventListener(locationDisplay: LocationDisplay): SensorEventListener {
+    // 创建存储磁力计和加速度传感器数据的数组
+    val gravity = FloatArray(3)
+    val geomagnetic = FloatArray(3)
+    val rotationMatrix = FloatArray(9)
+    val inclinationMatrix = FloatArray(9)
+    val orientationAngles = FloatArray(3)
+
     // 获取位置显示的默认符号作为PictureMarkerSymbol
     val navigationSymbol = locationDisplay.defaultSymbol as? PictureMarkerSymbol
+
     // 创建并记住传感器事件监听器
     return remember {
         object : SensorEventListener {
             override fun onAccuracyChanged(sensor: Sensor?, accuracy: Int) {}
+
             override fun onSensorChanged(event: SensorEvent?) {
                 event?.let {
-                    // 当传感器类型为旋转向量时
-                    if (it.sensor.type == Sensor.TYPE_ROTATION_VECTOR) {
-                        // 获取方位角并更新图标旋转角度
-                        val azimuth = getAzimuthFromSensorEvent(it)
-                        navigationSymbol?.angle = azimuth
+                    when (it.sensor.type) {
+                        Sensor.TYPE_ACCELEROMETER -> System.arraycopy(event.values, 0, gravity, 0, event.values.size)
+                        Sensor.TYPE_MAGNETIC_FIELD -> System.arraycopy(event.values, 0, geomagnetic, 0, event.values.size)
+                    }
+
+                    // 请求更新方位角
+                    val success = SensorManager.getRotationMatrix(rotationMatrix, inclinationMatrix, gravity, geomagnetic)
+                    if (success) {
+                        SensorManager.getOrientation(rotationMatrix, orientationAngles)
+                        locationDisplay.headingSymbol
+                        // 将弧度转换为度
+                        val azimuthInDegrees = Math.toDegrees(orientationAngles[0].toDouble()).toFloat()
+                        // 更新位置显示的符号旋转角度
+                        navigationSymbol?.angle = azimuthInDegrees
                     }
                 }
             }
         }
     }
-}
-
-// 从传感器事件中提取方位角
-fun getAzimuthFromSensorEvent(event: SensorEvent): Float {
-    // 创建旋转矩阵
-    val rotationMatrix = FloatArray(9)
-    // 从旋转向量获取旋转矩阵
-    SensorManager.getRotationMatrixFromVector(rotationMatrix, event.values)
-    // 创建方向数组
-    val orientationAngles = FloatArray(3)
-    // 获取方向
-    SensorManager.getOrientation(rotationMatrix, orientationAngles)
-    // 返回以度为单位的方位角
-    return Math.toDegrees(orientationAngles[0].toDouble()).toFloat()
 }
 
 @Composable
